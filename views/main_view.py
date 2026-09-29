@@ -660,6 +660,7 @@ CONSOLE_TEMPLATE_TRANSLATIONS = {
 
 CONSOLE_TEMPLATE_PATTERNS = tuple(
     (
+        source.split("{}")[0],
         re.compile(r"^" + r"(.*?)".join(re.escape(part) for part in source.split("{}")) + r"$"),
         source,
         translations,
@@ -677,6 +678,11 @@ class MainView:
         self.language_code = "pt"
         self._widget_texts: dict[tk.Widget, str] = {}
         self._log_entries: list[tuple[str, str]] = []
+        self._console_translation_cache: dict[tuple[str, str], str] = {}
+        self._log_refresh_generation = 0
+        self._log_refreshing = False
+        self._log_refresh_index = 0
+        self._log_refresh_scroll = (0.0, 1.0)
         self._status_message = "Pronto"
         self._dependencies_data: list[Dependency] = []
         self._initial_console_split_sized = False
@@ -1124,6 +1130,8 @@ class MainView:
 
         timestamp = datetime.now().strftime("%H:%M:%S")
         self._log_entries.append((timestamp, message))
+        if self._log_refreshing:
+            return
         self.log.configure(state="normal")
         self.log.insert("end", f"[{timestamp}] {self._translate_console_message(message)}\n")
         self.log.see("end")
@@ -1133,18 +1141,30 @@ class MainView:
         if self.language_code == "pt" or message.startswith("$ "):
             return message
 
-        language_index = {"en": 0, "ru": 1, "zh": 2, "hi": 3}.get(self.language_code)
+        language_index = {"en": 0, "ru": 1, "zh": 2, "hi": 3}.get(
+            self.language_code
+        )
         if language_index is None:
             return message
 
+        cache_key = (self.language_code, message)
+        cached = self._console_translation_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         exact_translation = CONSOLE_EXACT_TRANSLATIONS.get(message)
         if exact_translation is not None:
-            return exact_translation[language_index]
+            translated = exact_translation[language_index]
+            self._cache_console_translation(cache_key, translated)
+            return translated
         ui_translation = self._translate(message)
         if ui_translation != message:
+            self._cache_console_translation(cache_key, ui_translation)
             return ui_translation
 
-        for pattern, source_template, translations in CONSOLE_TEMPLATE_PATTERNS:
+        for prefix, pattern, _source_template, translations in CONSOLE_TEMPLATE_PATTERNS:
+            if not message.startswith(prefix):
+                continue
             match = pattern.fullmatch(message)
             if match:
                 localized = translations[language_index]
@@ -1152,21 +1172,68 @@ class MainView:
                     self._translate_console_message(argument)
                     for argument in match.groups()
                 )
-                return localized.format(*arguments)
+                translated = localized.format(*arguments)
+                self._cache_console_translation(cache_key, translated)
+                return translated
         return message
 
+    def _cache_console_translation(
+        self, cache_key: tuple[str, str], translated: str
+    ) -> None:
+        if len(self._console_translation_cache) >= 4096:
+            self._console_translation_cache.clear()
+        self._console_translation_cache[cache_key] = translated
+
     def _refresh_log(self) -> None:
-        first_visible, last_visible = self.log.yview()
+        self._log_refresh_generation += 1
+        generation = self._log_refresh_generation
+        self._log_refreshing = True
+        self._log_refresh_index = 0
+        self._log_refresh_scroll = self.log.yview()
+        self.log.configure(state="disabled")
+        self.root.after_idle(lambda: self._clear_log_batch(generation))
+
+    def _clear_log_batch(self, generation: int) -> None:
+        if generation != self._log_refresh_generation:
+            return
+
+        last_line = int(self.log.index("end-1c").split(".")[0])
+        if last_line <= 1:
+            self._refresh_log_batch(generation)
+            return
+
+        first_line = max(1, last_line - 149)
         self.log.configure(state="normal")
-        self.log.delete("1.0", "end")
-        for timestamp, message in self._log_entries:
+        self.log.delete(f"{first_line}.0", "end")
+        self.log.configure(state="disabled")
+        self.root.after(1, lambda: self._clear_log_batch(generation))
+
+    def _refresh_log_batch(self, generation: int) -> None:
+        if generation != self._log_refresh_generation:
+            return
+
+        batch_end = min(self._log_refresh_index + 150, len(self._log_entries))
+        lines: list[str] = []
+        for timestamp, message in self._log_entries[self._log_refresh_index:batch_end]:
             translated = self._translate_console_message(message)
-            self.log.insert("end", f"[{timestamp}] {translated}\n")
+            lines.append(f"[{timestamp}] {translated}\n")
+        self._log_refresh_index = batch_end
+
+        if lines:
+            self.log.configure(state="normal")
+            self.log.insert("end", "".join(lines))
+            self.log.configure(state="disabled")
+
+        if self._log_refresh_index < len(self._log_entries):
+            self.root.after(1, lambda: self._refresh_log_batch(generation))
+            return
+
+        self._log_refreshing = False
+        first_visible, last_visible = self._log_refresh_scroll
         if last_visible >= 0.99:
             self.log.see("end")
         else:
             self.log.yview_moveto(first_visible)
-        self.log.configure(state="disabled")
 
     def show_dependencies(self, dependencies: list[Dependency]) -> None:
         self._dependencies_data = dependencies
@@ -1251,6 +1318,9 @@ class MainView:
         self.root.update_idletasks()
 
     def _clear_log(self) -> None:
+        self._log_refresh_generation += 1
+        self._log_refreshing = False
+        self._log_refresh_index = 0
         self._log_entries.clear()
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")

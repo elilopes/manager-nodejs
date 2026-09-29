@@ -3,6 +3,11 @@
 Aplicativo desktop em Python para criar e administrar projetos Vite, Next.js e Node.js sem exibir uma janela de Prompt de Comando.
 Python desktop application for creating and managing Vite, Next.js, and Node.js projects without displaying a Command Prompt window.
 
+O arquivo compilado como executável e pronto para uso... ManagerNodeJs.exe
+
+Comando para compilar o script Pyhton em arquivo executável...
+pyinstaller --clean --onefile --windowed --add-data ManagerNodeJs app.pyw
+
 ## Requisitos
 
 - Python 3 com Tkinter (incluído na instalação padrão do Python para Windows).

@@ -1719,6 +1719,60 @@ app.post('/api/projects/command/stop', (_req: Request, res: Response) => {
   }
 });
 
+// Helper for running project commands
+async function runProjectCommand(
+  command: string,
+  args: string[],
+  cwd: string
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    const proc = spawn(command, args, { cwd, shell: true });
+    proc.stdout.on('data', (c) => (stdout += stripAnsi(c.toString())));
+    proc.stderr.on('data', (c) => (stderr += stripAnsi(c.toString())));
+    proc.on('close', (code) => resolve({ stdout, stderr, code }));
+  });
+}
+
+// Audit Dependencies
+app.post('/api/projects/audit', async (req: Request, res: Response) => {
+  const { directory, fix } = req.body;
+  if (!directory) return res.status(400).json({ error: 'Informe a pasta.' });
+  const result = await runProjectCommand('npm', fix ? ['audit', 'fix'] : ['audit', '--json'], directory);
+  res.json({ success: result.code === 0, output: result.stdout || result.stderr });
+});
+
+// Linting
+app.post('/api/projects/lint', async (req: Request, res: Response) => {
+  const { directory, fix } = req.body;
+  if (!directory) return res.status(400).json({ error: 'Informe a pasta.' });
+  const result = await runProjectCommand('npm', fix ? ['run', 'lint:fix'] : ['run', 'lint'], directory);
+  res.json({ success: result.code === 0, output: result.stdout || result.stderr });
+});
+
+// Git status
+app.post('/api/projects/git/status', async (req: Request, res: Response) => {
+  const { directory } = req.body;
+  if (!directory) return res.status(400).json({ error: 'Informe a pasta.' });
+  const result = await runProjectCommand('git', ['status', '--porcelain'], directory);
+  res.json({ output: result.stdout });
+});
+
+// Env file manager
+app.post('/api/projects/env/get', (req: Request, res: Response) => {
+  const { directory } = req.body;
+  const envPath = path.join(directory, '.env');
+  if (!fs.existsSync(envPath)) return res.json({ content: '' });
+  res.json({ content: fs.readFileSync(envPath, 'utf-8') });
+});
+
+app.post('/api/projects/env/save', (req: Request, res: Response) => {
+  const { directory, content } = req.body;
+  fs.writeFileSync(path.join(directory, '.env'), content, 'utf-8');
+  res.json({ success: true });
+});
+
 // Get current server status
 app.get('/api/projects/server/status', (_req: Request, res: Response) => {
   res.json({

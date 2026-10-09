@@ -28,10 +28,10 @@ import {
   Compass,
   LayoutGrid,
   Triangle,
+  Rocket,
   Flame,
   Activity,
   Mountain,
-  Rocket,
   PackageCheck,
   Sparkles,
   Gem,
@@ -61,7 +61,15 @@ export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'manage' | 'new' | 'custom' | 'manual'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'new' | 'custom' | 'manual' | 'audit' | 'lint' | 'env' | 'git' | 'bundle' | 'deploy'>('manage');
+
+  // New Features State
+  const [auditResult, setAuditResult] = useState<any>(null);
+  const [lintResult, setLintResult] = useState<any>(null);
+  const [envContent, setEnvContent] = useState<string>('');
+  const [gitStatus, setGitStatus] = useState<any>(null);
+  const [gitRemote, setGitRemote] = useState<string>('');
+  const [gitCommits, setGitCommits] = useState<any[]>([]);
 
   // New Project Form
   const [newProjectType, setNewProjectType] = useState<FrameworkTemplateId>('express');
@@ -168,9 +176,11 @@ export default function App() {
       const data = await res.json();
       if (data.projects && data.projects.length > 0) {
         setRecentProjects(data.projects);
+        /*
         if (!projectPath) {
           selectProject(data.projects[0]);
         }
+        */
       }
     } catch (err) {
       console.error(err);
@@ -574,6 +584,129 @@ export default function App() {
     }
   };
 
+  const handleRunAudit = async () => {
+    if (!projectPath) return;
+    setIsBusy(true);
+    setStatus({ text: 'Executando npm audit...', type: 'working' });
+    try {
+      const res = await fetch('/api/projects/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath }),
+      });
+      const data = await res.json();
+      setAuditResult(data);
+      setStatus({ text: 'Auditoria concluída', type: 'ready' });
+    } catch (err: any) {
+      notify(err.message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleRunLint = async () => {
+    if (!projectPath) return;
+    setIsBusy(true);
+    setStatus({ text: 'Executando lint...', type: 'working' });
+    try {
+      const res = await fetch('/api/projects/lint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath }),
+      });
+      const data = await res.json();
+      setLintResult(data);
+      setStatus({ text: 'Lint concluído', type: 'ready' });
+    } catch (err: any) {
+      notify(err.message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleGetEnv = async () => {
+    if (!projectPath) return;
+    try {
+      const res = await fetch('/api/projects/env/get', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath }),
+      });
+      const data = await res.json();
+      setEnvContent(data.content || '');
+    } catch (err: any) {
+      notify(err.message);
+    }
+  };
+
+  const handleSaveEnv = async () => {
+    if (!projectPath) return;
+    setIsBusy(true);
+    try {
+      await fetch('/api/projects/env/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath, content: envContent }),
+      });
+      notify('Arquivo .env salvo com sucesso!');
+    } catch (err: any) {
+      notify(err.message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleGitStatus = async () => {
+    if (!projectPath) return;
+    setIsBusy(true);
+    try {
+      const res = await fetch('/api/projects/git/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath }),
+      });
+      const data = await res.json();
+      setGitStatus(data);
+    } catch (err: any) {
+      notify(err.message);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleGitRemoteAdd = async () => {
+    if (!projectPath || !gitRemote.trim()) return;
+    try {
+      const res = await fetch('/api/projects/git/remote/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath, remoteUrl: gitRemote }),
+      });
+      if (res.ok) {
+        notify('Remote adicionado com sucesso!');
+      } else {
+        notify('Erro ao adicionar remote.');
+      }
+    } catch (err: any) {
+      notify(err.message);
+    }
+  };
+
+  const handleGitLog = async () => {
+    if (!projectPath) return;
+    try {
+      const res = await fetch('/api/projects/git/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath }),
+      });
+      const data = await res.json();
+      setGitCommits(data.commits || []);
+    } catch (err: any) {
+      notify(err.message);
+    }
+  };
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(serverStatus.url);
     notify(t('Copiar link local') + ': ' + serverStatus.url);
@@ -866,6 +999,66 @@ export default function App() {
             <BookOpen className="h-4 w-4" />
             {t('Manual técnico')}
           </button>
+          
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`flex items-center gap-2 pb-3 border-b-2 transition ${
+              activeTab === 'audit'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldAlert className="h-4 w-4" />
+            Audit
+          </button>
+
+          <button
+            onClick={() => setActiveTab('lint')}
+            className={`flex items-center gap-2 pb-3 border-b-2 transition ${
+              activeTab === 'lint'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Code2 className="h-4 w-4" />
+            Lint
+          </button>
+
+          <button
+            onClick={() => setActiveTab('env')}
+            className={`flex items-center gap-2 pb-3 border-b-2 transition ${
+              activeTab === 'env'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Binary className="h-4 w-4" />
+            .env
+          </button>
+
+          <button
+            onClick={() => setActiveTab('git')}
+            className={`flex items-center gap-2 pb-3 border-b-2 transition ${
+              activeTab === 'git'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            Git
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('deploy')}
+            className={`flex items-center gap-2 pb-3 border-b-2 transition ${
+              activeTab === 'deploy'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Rocket className="h-4 w-4" />
+            Deploy
+          </button>
         </div>
 
         {/* TAB 1: Selected Project Actions */}
@@ -1096,6 +1289,89 @@ export default function App() {
                 <span>{t('Abrir pasta do Node.js')}</span>
               </button>
             </div>
+          </section>
+        )}
+
+        {/* Audit Tab */}
+        {activeTab === 'audit' && (
+          <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-200">Auditoria de Dependências</h3>
+            <button onClick={handleRunAudit} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Rodar npm audit</button>
+            {auditResult && <pre className="text-xs bg-black p-3 rounded-lg overflow-x-auto text-slate-300">{JSON.stringify(auditResult, null, 2)}</pre>}
+          </section>
+        )}
+
+        {/* Lint Tab */}
+        {activeTab === 'lint' && (
+          <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-200">Linting e Formatação</h3>
+            <button onClick={handleRunLint} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Rodar Lint</button>
+            {lintResult && <pre className="text-xs bg-black p-3 rounded-lg overflow-x-auto text-slate-300">{JSON.stringify(lintResult, null, 2)}</pre>}
+          </section>
+        )}
+
+        {/* Env Tab */}
+        {activeTab === 'env' && (
+          <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-200">Gerenciador de .env</h3>
+            <button onClick={handleGetEnv} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Carregar .env</button>
+            <textarea value={envContent} onChange={(e) => setEnvContent(e.target.value)} className="w-full h-64 bg-black p-3 text-xs text-slate-300 border border-slate-700 rounded-lg" />
+            <button onClick={handleSaveEnv} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Salvar .env</button>
+          </section>
+        )}
+
+        {/* Git Tab */}
+        {activeTab === 'git' && (
+          <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-6">
+            <h3 className="text-sm font-semibold text-slate-200">Gerenciador Git</h3>
+
+            {/* Status Section */}
+            <div className="space-y-2">
+              <button onClick={handleGitStatus} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Ver Status Git</button>
+              {gitStatus && <pre className="text-xs bg-black p-3 rounded-lg overflow-x-auto text-slate-300">{JSON.stringify(gitStatus, null, 2)}</pre>}
+            </div>
+
+            {/* Remote Section */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-slate-400">Configurar Remote</h4>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={gitRemote}
+                  onChange={(e) => setGitRemote(e.target.value)}
+                  placeholder="URL do repositório remoto"
+                  className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                />
+                <button onClick={handleGitRemoteAdd} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Add Remote</button>
+              </div>
+            </div>
+
+            {/* Commits Section */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-slate-400">Commits Recentes</h4>
+              <button onClick={handleGitLog} className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Listar Commits</button>
+              {gitCommits.length > 0 && (
+                <ul className="text-xs text-slate-300 space-y-1">
+                  {gitCommits.map((commit, i) => (
+                    <li key={i} className="bg-slate-950 p-2 rounded">{commit.message} - {commit.hash}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Deploy Tab */}
+        {activeTab === 'deploy' && (
+          <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-200">Assistente de Deploy</h3>
+            <p className="text-xs text-slate-400">Escolha a plataforma e inicie o deploy.</p>
+            <div className="flex gap-2">
+              {['Vercel', 'Netlify', 'Render'].map(platform => (
+                <button key={platform} className="px-4 py-2 bg-slate-800 rounded-lg text-xs font-semibold text-white hover:bg-slate-700">{platform}</button>
+              ))}
+            </div>
+            <button className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Iniciar Deploy</button>
           </section>
         )}
 

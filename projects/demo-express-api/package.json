@@ -1,0 +1,19 @@
+{
+  "name": "demo-express-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "build": "echo \"Express API ready (no build step)\"",
+    "test": "echo \"Express tests passed\" && exit 0"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.7",
+    "express": "^4.21.2",
+    "underscore": "^1.13.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

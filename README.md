@@ -6,7 +6,7 @@
 
 ## <a id="versão-em-português"></a>Versão em Português
 
-Aplicativo completo para criar, inspecionar e gerenciar projetos do ecossistema Node.js sem abrir janelas de terminal ou prompt de comando.
+Aplicativo híbrido completo: formato web react e formato desktop python. Com as funções de criar, inspecionar e, gerenciar projetos do ecossistema Node.js, com prompt de comando integrado.
 
 O projeto oferece suporte duplo: o **aplicativo desktop clássico em Python** e a **versão moderna full-stack em Node.js/React com suporte a Electron**.
 

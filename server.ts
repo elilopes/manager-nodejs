@@ -1783,6 +1783,69 @@ app.get('/api/projects/server/status', (_req: Request, res: Response) => {
   });
 });
 
+// Docker Compose endpoints
+app.post('/api/docker/status', async (_req: Request, res: Response) => {
+  const result = await runProjectCommand('docker', ['compose', 'version'], process.cwd());
+  res.json({ available: result.code === 0, version: result.stdout.trim() || result.stderr.trim() });
+});
+
+app.post('/api/docker/compose/get', (req: Request, res: Response) => {
+  const { directory } = req.body;
+  if (!directory) return res.status(400).json({ error: 'Informe a pasta.' });
+  const composePath = path.join(directory, 'docker-compose.yml');
+  const composePath2 = path.join(directory, 'compose.yaml');
+  let content = '';
+  if (fs.existsSync(composePath)) {
+    content = fs.readFileSync(composePath, 'utf-8');
+  } else if (fs.existsSync(composePath2)) {
+    content = fs.readFileSync(composePath2, 'utf-8');
+  } else {
+    // Default template
+    content = `version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    restart: always
+`;
+  }
+  res.json({ content });
+});
+
+app.post('/api/docker/compose/save', (req: Request, res: Response) => {
+  const { directory, content } = req.body;
+  if (!directory || !content) return res.status(400).json({ error: 'Informe a pasta e o conteúdo.' });
+  fs.writeFileSync(path.join(directory, 'docker-compose.yml'), content, 'utf-8');
+  res.json({ success: true });
+});
+
+app.post('/api/docker/action', async (req: Request, res: Response) => {
+  const { directory, action } = req.body; // action: 'up' | 'down' | 'ps' | 'logs' | 'restart' | 'build'
+  if (!directory || !action) return res.status(400).json({ error: 'Informe a pasta e a ação.' });
+
+  let args: string[] = [];
+  if (action === 'up') args = ['compose', 'up', '-d'];
+  else if (action === 'down') args = ['compose', 'down'];
+  else if (action === 'ps') args = ['compose', 'ps'];
+  else if (action === 'logs') args = ['compose', 'logs', '--tail=100'];
+  else if (action === 'restart') args = ['compose', 'restart'];
+  else if (action === 'build') args = ['compose', 'build'];
+  else return res.status(400).json({ error: 'Ação inválida.' });
+
+  broadcastLog(`$ docker ${args.join(' ')}`, 'command');
+  const result = await runProjectCommand('docker', args, directory);
+  if (result.stdout) {
+    result.stdout.split('\n').filter(Boolean).forEach(line => broadcastLog(line, 'command'));
+  }
+  if (result.stderr) {
+    result.stderr.split('\n').filter(Boolean).forEach(line => broadcastLog(line, 'command'));
+  }
+  res.json({ success: result.code === 0, output: result.stdout || result.stderr });
+});
+
 // Setup Vite development middleware or static serve in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

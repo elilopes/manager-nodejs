@@ -136,6 +136,13 @@ Os executáveis serão gerados na pasta `release/`.
 4. **Build e Pré-visualização:** Detecção automática do script de build e inicialização de prévia estática ou de servidor.
 5. **Servidor de Desenvolvimento Integrado:** Inicialização e encerramento com detecção de portas e links locais.
 6. **Console Interativo:** Execução de comandos personalizados com streaming de saída, remoção de códigos ANSI e histórico de comandos.
+7. **Auditoria de Dependências:** Execução de `npm audit` para verificação de vulnerabilidades de segurança e suporte a correções automáticas (`npm audit fix`).
+8. **Linting e Formatação:** Interface dedicada para executar ESLint e Prettier, exibindo lista de erros e avisos com suporte a correções automáticas.
+9. **Análise de Bundle:** Integração visual com `rollup-plugin-visualizer` para exibir o tamanho dos pacotes e identificar dependências que inflando o build.
+10. **Gerenciador de Variáveis de Ambiente:** Editor completo para criar, editar e visualizar arquivos `.env` com recurso de mascaramento de valores sensíveis (segredos).
+11. **Integração de Deploy:** Assistente de configuração para deploy em plataformas populares (Vercel, Netlify, Render) via suas respectivas CLIs.
+12. **Gerenciador de Git Completo:** Interface integrada para operações de versionamento (`git status`, `git add`, `git commit`, `git push`), configuração de repositório remoto (`git remote add`) e visualização do histórico de commits (`git log`).
+13. **Gerenciador Docker Compose:** Interface visual e editor para gerenciar arquivos `docker-compose.yml`, executar comandos (`docker compose up -d`, `down`, `restart`, `ps`, `logs`) e gerenciar serviços containerizados.
 
 ---
 
@@ -273,3 +280,10 @@ Binaries and installers will be generated in the `release/` directory.
 4. **Build & Preview:** Automatic detection of framework build scripts and static/server preview launchers.
 5. **Integrated Dev Server:** Start, monitor, and stop project dev servers with local link detection.
 6. **Interactive Terminal:** Execute custom shell commands with live streaming output and ANSI code stripping.
+7. **Dependency Audit:** Run `npm audit` to check for security vulnerabilities and apply automated fixes via `npm audit fix`.
+8. **Linting & Formatting:** Dedicated interface to execute ESLint and Prettier, displaying errors/warnings and supporting automated fixes.
+9. **Bundle Analysis:** Visual integration with `rollup-plugin-visualizer` to inspect bundle sizes and identify bloated libraries.
+10. **Environment Variable Manager:** Complete editor to create, edit, and view `.env` files with secret masking support.
+11. **Deploy Integration:** Setup and deployment assistant for popular hosting platforms (Vercel, Netlify, Render) via their respective CLIs.
+12. **Complete Git Manager:** Integrated interface for version control operations (`git status`, `git add`, `git commit`, `git push`), remote repository configuration (`git remote add`), and commit history viewing (`git log`).
+13. **Docker Compose Manager:** Visual interface and editor to manage `docker-compose.yml` files, execute container commands (`docker compose up -d`, `down`, `restart`, `ps`, `logs`), and orchestrate multi-container services.

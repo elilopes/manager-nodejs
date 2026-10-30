@@ -61,7 +61,7 @@ export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'manage' | 'new' | 'custom' | 'manual' | 'audit' | 'lint' | 'env' | 'git' | 'bundle' | 'deploy'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'new' | 'custom' | 'manual' | 'audit' | 'lint' | 'env' | 'git' | 'bundle' | 'deploy' | 'docker'>('manage');
 
   // New Features State
   const [auditResult, setAuditResult] = useState<any>(null);
@@ -70,6 +70,8 @@ export default function App() {
   const [gitStatus, setGitStatus] = useState<any>(null);
   const [gitRemote, setGitRemote] = useState<string>('');
   const [gitCommits, setGitCommits] = useState<any[]>([]);
+  const [dockerContent, setDockerContent] = useState<string>('');
+  const [dockerSystemStatus, setDockerSystemStatus] = useState<any>(null);
 
   // New Project Form
   const [newProjectType, setNewProjectType] = useState<FrameworkTemplateId>('express');
@@ -168,7 +170,73 @@ export default function App() {
     fetchSystemInfo();
     fetchServerStatus();
     fetchAvailableProjects();
+    checkDockerSystem();
   }, []);
+
+  const handleGetDocker = async () => {
+    if (!projectPath) return;
+    try {
+      const res = await fetch('/api/docker/compose/get', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath }),
+      });
+      const data = await res.json();
+      setDockerContent(data.content || '');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveDocker = async () => {
+    if (!projectPath) return;
+    try {
+      const res = await fetch('/api/docker/compose/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath, content: dockerContent }),
+      });
+      if (res.ok) {
+        notify('docker-compose.yml salvo com sucesso!');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDockerAction = async (action: string) => {
+    if (!projectPath) return;
+    setIsBusy(true);
+    setStatus({ text: `Executando docker compose ${action}...`, type: 'working' });
+    try {
+      const res = await fetch('/api/docker/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: projectPath, action }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatus({ text: `Docker compose ${action} concluído`, type: 'ready' });
+        notify(`Ação ${action} executada com sucesso!`);
+      } else {
+        setStatus({ text: `Falha em docker compose ${action}`, type: 'error' });
+      }
+    } catch (err: any) {
+      setStatus({ text: err.message, type: 'error' });
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const checkDockerSystem = async () => {
+    try {
+      const res = await fetch('/api/docker/status', { method: 'POST' });
+      const data = await res.json();
+      setDockerSystemStatus(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchRecentProjects = async () => {
     try {
@@ -1059,6 +1127,21 @@ export default function App() {
             <Rocket className="h-4 w-4" />
             Deploy
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('docker');
+              handleGetDocker();
+            }}
+            className={`flex items-center gap-2 pb-3 border-b-2 transition ${
+              activeTab === 'docker'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Boxes className="h-4 w-4" />
+            Docker
+          </button>
         </div>
 
         {/* TAB 1: Selected Project Actions */}
@@ -1372,6 +1455,59 @@ export default function App() {
               ))}
             </div>
             <button className="px-4 py-2 bg-indigo-600 rounded-lg text-xs font-semibold text-white">Iniciar Deploy</button>
+          </section>
+        )}
+
+        {/* Docker Tab */}
+        {activeTab === 'docker' && (
+          <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-200">Gerenciador Docker Compose</h3>
+                <p className="text-xs text-slate-400">Configure e execute seus containers via docker-compose.yml</p>
+              </div>
+              {dockerSystemStatus && (
+                <div className={`px-3 py-1 rounded-lg text-xs font-mono border ${dockerSystemStatus.available ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' : 'bg-red-950/40 border-red-500/30 text-red-200'}`}>
+                  {dockerSystemStatus.available ? `Docker OK (${dockerSystemStatus.version})` : 'Docker não detectado'}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => handleDockerAction('up')} disabled={isBusy} className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5">
+                <Play className="h-3.5 w-3.5" /> docker compose up -d
+              </button>
+              <button onClick={() => handleDockerAction('down')} disabled={isBusy} className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 text-xs font-semibold flex items-center gap-1.5">
+                <Square className="h-3.5 w-3.5" /> docker compose down
+              </button>
+              <button onClick={() => handleDockerAction('restart')} disabled={isBusy} className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" /> Reiniciar
+              </button>
+              <button onClick={() => handleDockerAction('ps')} disabled={isBusy} className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5" /> Status (ps)
+              </button>
+              <button onClick={() => handleDockerAction('logs')} disabled={isBusy} className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5">
+                <Activity className="h-3.5 w-3.5" /> Ver Logs
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-300">Conteúdo do `docker-compose.yml`:</label>
+                <button onClick={handleGetDocker} className="text-xs text-indigo-400 hover:underline">Recarregar</button>
+              </div>
+              <textarea
+                value={dockerContent}
+                onChange={(e) => setDockerContent(e.target.value)}
+                placeholder="Cole ou edite seu docker-compose.yml aqui..."
+                className="w-full h-64 bg-slate-950 font-mono text-xs text-slate-200 border border-slate-800 rounded-xl p-3 outline-none focus:border-indigo-500"
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={handleSaveDocker} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+                  Salvar docker-compose.yml
+                </button>
+              </div>
+            </div>
           </section>
         )}
 
